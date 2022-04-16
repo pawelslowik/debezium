@@ -1,0 +1,90 @@
+networks:
+  custom_network:
+
+services:
+  zookeeper:
+    image: "debezium/zookeeper:1.8"
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+      - "2888:2888"
+      - "3888:3888"
+    networks:
+      - custom_network    
+  
+  kafka:
+    image: "debezium/kafka:1.8"
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    networks:
+      - custom_network  
+    depends_on:
+      - zookeeper
+    environment:  
+      ZOOKEEPER_CONNECT: "zookeeper:2181" 
+
+  kafka-ui:
+    image: "provectuslabs/kafka-ui:latest"
+    container_name: kafka-ui
+    ports:
+      - "8081:8080"
+    networks:
+      - custom_network  
+    depends_on:
+      - kafka
+      - zookeeper
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "kafka:9092"
+      KAFKA_CLUSTERS_0_ZOOKEEPER: "zookeeper:2181"
+  
+  mysql:
+    image: "debezium/example-mysql:1.8"  
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    networks:
+      - custom_network  
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_USER: "${MYSQL_USER}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD}"  
+  
+  apicurio:
+    image: "apicurio/apicurio-registry-mem:2.0.2.Final"
+    container_name: apicurio
+    ports:
+      - "8080:8080"
+    networks:
+      - custom_network  
+      
+  connect-apicurio-avro:
+    image: "debezium/connect:1.8"
+    container_name: connect-apicurio-avro
+    ports:
+      - "8083:8083"
+    networks:
+      - custom_network  
+    depends_on:
+      - kafka
+      - mysql      
+      - apicurio
+    environment:
+      GROUP_ID: "1"
+      CONFIG_STORAGE_TOPIC: "my_connect_configs"
+      OFFSET_STORAGE_TOPIC: "my_connect_offsets"
+      STATUS_STORAGE_TOPIC: "my_connect_statuses"
+      BOOTSTRAP_SERVERS: kafka:9092
+      ENABLE_APICURIO_CONVERTERS: "true"
+      KEY_CONVERTER: "io.apicurio.registry.utils.converter.AvroConverter"
+      VALUE_CONVERTER: "io.apicurio.registry.utils.converter.AvroConverter"
+      CONNECT_KEY_CONVERTER: "io.apicurio.registry.utils.converter.AvroConverter"
+      CONNECT_KEY_CONVERTER_APICURIO.REGISTRY_URL: "http://apicurio:8080/apis/registry/v2"
+      CONNECT_KEY_CONVERTER_APICURIO_REGISTRY_AUTO-REGISTER: "true"
+      CONNECT_KEY_CONVERTER_APICURIO_REGISTRY_FIND-LATEST: "true"
+      CONNECT_VALUE_CONVERTER: "io.apicurio.registry.utils.converter.AvroConverter"
+      CONNECT_VALUE_CONVERTER_APICURIO_REGISTRY_URL: "http://apicurio:8080/apis/registry/v2"
+      CONNECT_VALUE_CONVERTER_APICURIO_REGISTRY_AUTO-REGISTER: "true"
+      CONNECT_VALUE_CONVERTER_APICURIO_REGISTRY_FIND-LATEST: "true"
+      
